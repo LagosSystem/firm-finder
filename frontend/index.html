@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firm Finder — Law firm and contact directory builder</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #E9ECF1;
+      color: #0F1B2D;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+    .card-shadow {
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+    }
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #F1F4F9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94A3B8;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-[#2F6FE4]/15 selection:text-[#0F1B2D]">
+
+  <!-- 1. App Header: Firm Finder + Prototype pill on left; Running pill + Refresh on right -->
+  <header class="bg-white border-b border-slate-200/80 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+      <div class="flex items-center space-x-2.5">
+        <span class="font-bold text-base sm:text-lg text-[#0F1B2D] tracking-tight">Firm Finder</span>
+        <span class="text-[11px] bg-slate-100 text-slate-600 font-medium px-2 py-0.5 rounded-full border border-slate-200">Prototype</span>
+        <span id="demoModeBadge" onclick="toggleDemoMode()" class="hidden cursor-pointer text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium px-2 py-0.5 rounded-full border border-amber-200 transition" title="Click to toggle demo database">Demo data</span>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <!-- Running pill with pulsing dot: visible ONLY while a search is active -->
+        <div id="liveRunIndicator" class="hidden items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-xs font-semibold text-[#2F6FE4]">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#2F6FE4] animate-pulse"></span>
+          <span>Running</span>
+        </div>
+        <button
+          onclick="handleRefreshClick()"
+          class="px-2.5 py-1 text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium transition flex items-center space-x-1 shadow-2xs"
+          title="Delete all results from all time & refresh"
+        >
+          <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+          <span>Refresh</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex-1 w-full space-y-4">
+
+    <!-- 2. SCOPE BAR: (one card, one row / responsive wrap) -->
+    <div class="bg-white border border-slate-200/80 rounded-2xl p-4 card-shadow">
+      <form id="searchForm" onsubmit="handleStartSearch(event)" class="space-y-2">
+        <div class="flex flex-col md:flex-row md:items-center gap-3">
+          <!-- Market Input -->
+          <div class="flex-1 relative">
+            <input
+              type="text"
+              id="locationInput"
+              required
+              oninput="updateHeadingMarket(this.value)"
+              placeholder="Market: city, region"
+              value=""
+              class="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-[#0F1B2D] placeholder-slate-400 focus:outline-none focus:border-[#2F6FE4] focus:ring-1 focus:ring-[#2F6FE4] transition"
+            />
+          </div>
+
+          <!-- Number of firms select -->
+          <div class="flex items-center space-x-1.5 flex-shrink-0">
+            <label for="maxResultsInput" class="text-xs text-slate-500 font-medium whitespace-nowrap">Firms:</label>
+            <select
+              id="maxResultsInput"
+              class="bg-[#F8FAFC] border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm text-[#0F1B2D] font-medium focus:outline-none focus:border-[#2F6FE4] transition"
+            >
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+
+          <!-- Buttons: Find firms & Stop -->
+          <div class="flex items-center space-x-2 flex-shrink-0">
+            <button
+              type="submit"
+              id="startBtn"
+              class="px-4 py-2 rounded-xl bg-[#2F6FE4] hover:bg-[#245EC4] text-white font-semibold text-xs transition shadow-xs disabled:opacity-50 flex items-center space-x-1.5"
+            >
+              <i data-lucide="search" class="w-3.5 h-3.5"></i>
+              <span>Find firms</span>
+            </button>
+
+            <button
+              type="button"
+              id="stopBtn"
+              onclick="handleStopSearch()"
+              disabled
+              class="px-4 py-2 rounded-xl bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-semibold text-xs transition disabled:opacity-40 disabled:pointer-events-none"
+            >
+              <span>Stop</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Preset Chips & Fixed Keyword Note -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-[11px] text-slate-400 font-medium mr-0.5">Presets:</span>
+            <button type="button" onclick="setLocation('Fulton County, Atlanta, GA')" class="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-0.5 rounded-full border border-slate-200/80 transition">Fulton County, GA</button>
+            <button type="button" onclick="setLocation('Atlanta, GA')" class="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-0.5 rounded-full border border-slate-200/80 transition">Atlanta, GA</button>
+            <button type="button" onclick="setLocation('Detroit, MI')" class="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-0.5 rounded-full border border-slate-200/80 transition">Detroit, MI</button>
+            <button type="button" onclick="setLocation('Orangeburg, SC')" class="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-0.5 rounded-full border border-slate-200/80 transition">Orangeburg, SC</button>
+          </div>
+          <div class="text-[11px] text-slate-400">
+            Keyword fixed: law firms · Stops when results run out or the target is reached
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- 3. RUN LINE (one slim card, one row): Stage 1 bar, Stage 2 bar, elapsed timer, single end-state pill -->
+    <div id="runLineCard" class="hidden bg-white border border-slate-200/80 rounded-2xl px-4 py-3 card-shadow">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Stage 1 Listings -->
+          <div class="flex items-center space-x-2.5 min-w-0">
+            <span class="font-medium text-slate-700 whitespace-nowrap">Stage 1 Listings</span>
+            <div class="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden min-w-[60px]">
+              <div id="stage1Bar" class="bg-[#2F6FE4] h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <span id="stage1Counter" class="font-mono text-slate-500 tabular-nums whitespace-nowrap">0 / 25</span>
+          </div>
+
+          <!-- Stage 2 Sites and people -->
+          <div class="flex items-center space-x-2.5 min-w-0">
+            <span class="font-medium text-slate-700 whitespace-nowrap">Stage 2 Sites and people</span>
+            <div class="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden min-w-[60px]">
+              <div id="stage2Bar" class="bg-[#2F6FE4] h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <span id="stage2Counter" class="font-mono text-slate-500 tabular-nums whitespace-nowrap">0 / 0</span>
+          </div>
+        </div>
+
+        <!-- Timer & End-State Pill -->
+        <div class="flex items-center space-x-3 flex-shrink-0 self-end sm:self-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+          <div id="pipelineTimer" class="font-mono font-medium text-slate-700 tabular-nums">00:00</div>
+          <span id="runEndReasonPill" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+            Idle
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. MAIN AREA: Two Columns (Results Column flexible, Right Rail 300px) -->
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 items-start">
+
+      <!-- LEFT: RESULTS COLUMN -->
+      <div class="space-y-4 min-w-0">
+
+        <!-- Heading Card: Law firms in {market} + Subline + Scope Switch -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 card-shadow flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="min-w-0">
+            <h1 id="pageHeading" class="text-xl sm:text-2xl font-bold text-[#0F1B2D] tracking-tight truncate">
+              Law firms in <span id="headingMarket">Selected Market</span>
+            </h1>
+            <div id="headingSubline" class="text-xs text-slate-500 mt-0.5">
+              No run yet
+            </div>
+          </div>
+
+          <!-- Segmented switch: Latest run (N) | All time (N) -->
+          <div class="bg-slate-100 border border-slate-200/80 p-1 rounded-xl flex items-center space-x-1 flex-shrink-0 self-start sm:self-auto">
+            <button
+              id="toggleLatestRun"
+              type="button"
+              onclick="setScope('latest')"
+              class="px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-white text-[#0F1B2D] shadow-xs"
+            >
+              Latest run (<span id="latestRunCount">0</span>)
+            </button>
+            <button
+              id="toggleAllTime"
+              type="button"
+              onclick="setScope('all')"
+              class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition"
+            >
+              All time (<span id="allTimeTotalCount">0</span>)
+            </button>
+          </div>
+        </div>
+
+        <!-- 3 KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <!-- KPI 1: Firms found -->
+          <div class="bg-white border border-slate-200/80 rounded-2xl p-4 card-shadow space-y-1">
+            <div class="text-xs text-slate-500 font-medium">Firms found</div>
+            <div id="kpiFirmsContainer">
+              <div id="kpiFirmsVal" class="text-2xl sm:text-3xl font-bold text-[#0F1B2D] tabular-nums">—</div>
+            </div>
+            <div id="kpiFirmsSub" class="text-[10px] text-slate-400 font-medium">latest run</div>
+          </div>
+
+          <!-- KPI 2: With a direct email -->
+          <div class="bg-white border border-slate-200/80 rounded-2xl p-4 card-shadow space-y-1">
+            <div class="text-xs text-slate-500 font-medium">With a direct email</div>
+            <div id="kpiEmailsContainer" class="flex items-baseline space-x-1.5">
+              <span id="kpiEmailsVal" class="text-2xl sm:text-3xl font-bold text-[#0F1B2D] tabular-nums">—</span>
+              <span class="text-slate-400 font-bold">·</span>
+              <span id="kpiEmailsRate" class="text-base sm:text-lg font-semibold text-slate-700 tabular-nums">—</span>
+            </div>
+            <div id="kpiEmailsSub" class="text-[10px] text-slate-400 font-medium">latest run</div>
+          </div>
+
+          <!-- KPI 3: Sites analysed -->
+          <div class="bg-white border border-slate-200/80 rounded-2xl p-4 card-shadow space-y-1">
+            <div class="text-xs text-slate-500 font-medium">Sites analysed</div>
+            <div id="kpiWebsitesContainer">
+              <div id="kpiWebsitesVal" class="text-2xl sm:text-3xl font-bold text-[#0F1B2D] tabular-nums">—</div>
+            </div>
+            <div id="kpiWebsitesSub" class="text-[10px] text-slate-400 font-medium">latest run</div>
+          </div>
+        </div>
+
+        <!-- Toolbar Card, one row: filter input, pills, Export dropdown, Clear dropdown -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-3.5 card-shadow flex flex-wrap items-center justify-between gap-2.5">
+          <!-- Filter input -->
+          <div class="flex-1 min-w-[180px] max-w-sm">
+            <input
+              type="text"
+              id="filterInput"
+              oninput="renderDirectoryList()"
+              placeholder="Filter by name, city, email..."
+              class="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-[#0F1B2D] placeholder-slate-400 focus:outline-none focus:border-[#2F6FE4] transition"
+            />
+          </div>
+
+          <!-- Filter pills + Export & Clear dropdowns -->
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <!-- Filter Pills -->
+            <label class="cursor-pointer select-none">
+              <input type="checkbox" id="hideLowRelevanceCheckbox" onchange="renderDirectoryList()" class="hidden peer">
+              <span class="px-2.5 py-1 rounded-full border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition font-medium">
+                Hide low relevance
+              </span>
+            </label>
+
+            <label class="cursor-pointer select-none">
+              <input type="checkbox" id="onlyWithEmailCheckbox" onchange="renderDirectoryList()" class="hidden peer">
+              <span class="px-2.5 py-1 rounded-full border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition font-medium">
+                Email found only
+              </span>
+            </label>
+
+            <!-- Export Dropdown -->
+            <div class="relative inline-block text-left">
+              <button
+                type="button"
+                id="exportMenuBtn"
+                onclick="toggleExportMenu(event)"
+                class="px-3 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-medium transition flex items-center space-x-1 shadow-2xs"
+              >
+                <span>Export</span>
+                <i data-lucide="chevron-down" class="w-3 h-3 text-slate-400"></i>
+              </button>
+              <div id="exportDropdownMenu" class="hidden absolute right-0 mt-1.5 w-64 rounded-xl bg-white border border-slate-200 shadow-xl py-1.5 z-30">
+                <button type="button" onclick="downloadCSV(false); closeExportMenu()" class="w-full text-left px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center justify-between">
+                  <span id="exportItemFirms">Firms (CSV)</span>
+                </button>
+                <button type="button" onclick="downloadContactsCSV(); closeExportMenu()" class="w-full text-left px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center justify-between">
+                  <span id="exportItemPractitioners">Practitioners (CSV)</span>
+                </button>
+                <button type="button" onclick="downloadCSV(true); closeExportMenu()" class="w-full text-left px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center justify-between">
+                  <span id="exportItemEmails">Emails only (CSV)</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Clear Dropdown -->
+            <div class="relative inline-block text-left">
+              <button
+                type="button"
+                id="clearMenuBtn"
+                onclick="toggleClearMenu(event)"
+                class="px-3 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-medium transition flex items-center space-x-1 shadow-2xs"
+              >
+                <span>Clear</span>
+                <i data-lucide="chevron-down" class="w-3 h-3 text-slate-400"></i>
+              </button>
+              <div id="clearDropdownMenu" class="hidden absolute right-0 mt-1.5 w-60 rounded-xl bg-white border border-slate-200 shadow-xl py-1.5 z-30">
+                <button type="button" onclick="promptClearLatestRun()" class="w-full text-left px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center space-x-2">
+                  <i data-lucide="x-circle" class="w-3.5 h-3.5 text-amber-500"></i>
+                  <span id="clearLatestMenuText">Clear latest run (0 firms)</span>
+                </button>
+                <button type="button" onclick="promptDeleteEverything()" class="w-full text-left px-3.5 py-2 text-xs text-rose-700 hover:bg-rose-50 flex items-center space-x-2">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-600"></i>
+                  <span id="deleteEverythingMenuText">Delete everything (0 firms)</span>
+                </button>
+                <div class="border-t border-slate-100 my-1"></div>
+                <button type="button" onclick="handleNewSession()" class="w-full text-left px-3.5 py-2 text-xs text-slate-600 hover:bg-slate-50 flex items-center space-x-2">
+                  <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-[#2F6FE4]"></i>
+                  <span>New session</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Firm List Container -->
+        <div id="directoryListContainer" class="space-y-3">
+          <!-- Populated by JS -->
+        </div>
+
+      </div>
+
+      <!-- RIGHT: RIGHT RAIL (300px, sticky on wide screens) -->
+      <div class="lg:sticky lg:top-20 space-y-4 w-full">
+
+        <!-- 3a. Run summary card -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 card-shadow space-y-2.5">
+          <h3 class="text-xs font-bold text-slate-800">Run summary</h3>
+          <div class="text-xs text-slate-600 leading-relaxed font-mono space-y-1">
+            <div id="summaryMetaLine1" class="text-slate-700 font-medium">
+              ID · market · found · new
+            </div>
+            <div id="summaryMetaLine2" class="text-slate-500">
+              Emails · end state
+            </div>
+          </div>
+        </div>
+
+        <!-- 3b. Live stream card filling remaining height with collapse toggle -->
+        <div id="liveStreamCard" class="bg-white border border-slate-200/80 rounded-2xl p-4 card-shadow space-y-2.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="w-2 h-2 rounded-full bg-[#2F6FE4]"></span>
+              <h3 class="text-xs font-bold text-slate-800">Live stream</h3>
+            </div>
+            <button
+              type="button"
+              id="streamCollapseBtn"
+              onclick="toggleLiveStreamCollapse()"
+              class="px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-[10px] font-semibold text-slate-600 transition"
+            >
+              collapse
+            </button>
+          </div>
+
+          <div
+            id="activityStreamBox"
+            class="bg-[#F8FAFC] border border-slate-200/80 rounded-xl p-2.5 font-mono text-[11px] text-slate-600 h-64 overflow-y-auto space-y-1 leading-relaxed"
+          >
+            <div class="text-slate-400">[00:00] Ready</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Clear Confirmation Modal -->
+  <div id="clearConfirmModal" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-slate-200">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center flex-shrink-0">
+          <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 id="modalTitle" class="text-base font-bold text-slate-900">Confirm Deletion</h3>
+          <p id="modalDescription" class="text-xs text-slate-500 mt-0.5">Are you sure?</p>
+        </div>
+      </div>
+      <div id="modalExportNotice" class="p-3 bg-blue-50/70 border border-blue-100 rounded-xl text-xs text-blue-700 flex items-center justify-between">
+        <span>We recommend saving a backup first.</span>
+        <a id="modalExportLink" href="#" target="_blank" class="font-bold underline hover:text-blue-900">Export first</a>
+      </div>
+      <div class="flex items-center justify-end space-x-2 pt-2">
+        <button type="button" onclick="closeConfirmModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition">Cancel</button>
+        <button type="button" id="modalConfirmBtn" class="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 shadow-xs transition">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Undo Toast Container (10s countdown toast) -->
+  <div id="undoToastContainer" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center space-x-4 text-xs font-medium">
+    <div class="flex items-center space-x-2">
+      <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+      <span id="undoToastMessage">Action completed.</span>
+    </div>
+    <button id="undoBtn" onclick="executeUndoClick()" class="px-3 py-1 bg-white text-slate-900 rounded-lg font-bold hover:bg-slate-100 transition flex items-center space-x-1">
+      <i data-lucide="undo-2" class="w-3.5 h-3.5"></i>
+      <span id="undoBtnText">Undo (10s)</span>
+    </button>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-white border border-slate-200 text-[#0F1B2D] px-4 py-3 rounded-xl shadow-xl flex items-center space-x-2.5 pointer-events-none">
+    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600" id="toastIcon"></i>
+    <span id="toastMsg" class="text-xs font-semibold">Notification</span>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-200/80 bg-white py-5 mt-8 text-center text-xs text-slate-400">
+    <div class="max-w-7xl mx-auto px-4">
+      Firm Finder • Independent prototype
+    </div>
+  </footer>
+
+  <script>
+    // State management
+    let currentScope = 'latest'; // 'latest' or 'all'
+    let latestRun = null;
+    let latestRunId = null;
+    let activeRunId = null;
+    let eventSource = null;
+    let allLeads = [];
+    let isSearchRunning = false;
+    let currentlyEnrichingId = null;
+    let runStartTime = null;
+    let runTimerInterval = null;
+    let targetCount = 25;
+    let selectedRowId = null;
+    const expandedFirms = new Set();
+    const showLowConfidenceFirms = new Set();
+    let isStreamCollapsed = false;
+
+    // Undo management
+    let currentUndoToken = null;
+    let undoCountdownTimer = null;
+    let undoSecondsRemaining = 10;
+
+    // Client session tracking
+    let clientSessionId = localStorage.getItem('firm_finder_session_id');
+    if (!clientSessionId) {
+      clientSessionId = 'sess_' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('firm_finder_session_id', clientSessionId);
+    }
+
+    function getApiBaseUrl() {
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '') {
+        try { localStorage.removeItem('API_BASE_URL'); } catch (e) {}
+        return '';
+      }
+      if (window.API_BASE_URL) return window.API_BASE_URL.replace(/\/+$/, '');
+      const localOverride = localStorage.getItem('API_BASE_URL');
+      if (localOverride) return localOverride.replace(/\/+$/, '');
+      if (window.location.hostname.endsWith('.vercel.app')) {
+        return 'https://firm-finder.onrender.com';
+      }
+      return '';
+    }
+
+    function apiUrl(path) {
+      const base = getApiBaseUrl();
+      if (!base) return path;
+      return `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function getInitials(name) {
+      if (!name) return 'LF';
+      return name.split(' ').map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+    }
+
+    function formatDuration(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    function formatTime(isoStr) {
+      if (!isoStr) return 'Just now';
+      try {
+        const d = new Date(isoStr);
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } catch (e) {
+        return isoStr;
+      }
+    }
+
+    function updateHeadingMarket(val) {
+      const el = document.getElementById("headingMarket");
+      if (el) el.textContent = val.trim() || 'Selected Market';
+    }
+
+    function togglePeopleDrawer(id) {
+      if (expandedFirms.has(id)) {
+        expandedFirms.delete(id);
+      } else {
+        expandedFirms.add(id);
+      }
+      renderDirectoryList();
+    }
+
+    function toggleLowConfidence(id) {
+      if (showLowConfidenceFirms.has(id)) {
+        showLowConfidenceFirms.delete(id);
+      } else {
+        showLowConfidenceFirms.add(id);
+      }
+      renderDirectoryList();
+    }
+
+    function toggleLiveStreamCollapse() {
+      isStreamCollapsed = !isStreamCollapsed;
+      const box = document.getElementById("activityStreamBox");
+      const btn = document.getElementById("streamCollapseBtn");
+      if (isStreamCollapsed) {
+        box.classList.add("hidden");
+        btn.textContent = "expand";
+      } else {
+        box.classList.remove("hidden");
+        btn.textContent = "collapse";
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+      document.addEventListener("click", (e) => {
+        // Clear menu click outside
+        const clearMenu = document.getElementById("clearDropdownMenu");
+        const clearBtn = document.getElementById("clearMenuBtn");
+        if (clearMenu && !clearMenu.contains(e.target) && !clearBtn.contains(e.target)) {
+          clearMenu.classList.add("hidden");
+        }
+        // Export menu click outside
+        const exportMenu = document.getElementById("exportDropdownMenu");
+        const exportBtn = document.getElementById("exportMenuBtn");
+        if (exportMenu && !exportMenu.contains(e.target) && !exportBtn.contains(e.target)) {
+          exportMenu.classList.add("hidden");
+        }
+      });
+      checkDemoMode();
+      refreshData();
+    });
+
+    async function checkDemoMode() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('demo') === '1' || params.get('demo') === 'true') {
+        await fetch(apiUrl('/api/demo/enable'), { method: 'POST' });
+        const b = document.getElementById('demoModeBadge');
+        if (b) b.classList.remove('hidden');
+        refreshData();
+      } else {
+        try {
+          const res = await fetch(apiUrl('/api/demo/mode'));
+          if (res.ok) {
+            const d = await res.json();
+            const b = document.getElementById('demoModeBadge');
+            if (b && d.demo) b.classList.remove('hidden');
+          }
+        } catch(e) {}
+      }
+    }
+
+    async function toggleDemoMode() {
+      const badge = document.getElementById('demoModeBadge');
+      const isDemo = badge && !badge.classList.contains('hidden');
+      if (isDemo) {
+        await fetch(apiUrl('/api/demo/disable'), { method: 'POST' });
+        if (badge) badge.classList.add('hidden');
+        showToast('Switched to live database');
+      } else {
+        await fetch(apiUrl('/api/demo/enable'), { method: 'POST' });
+        if (badge) badge.classList.remove('hidden');
+        showToast('Switched to seeded demo database');
+      }
+      refreshData();
+    }
+
+    function setLocation(loc) {
+      document.getElementById("locationInput").value = loc;
+      updateHeadingMarket(loc);
+    }
+
+    function setScope(scope) {
+      currentScope = scope;
+      const latestBtn = document.getElementById("toggleLatestRun");
+      const allBtn = document.getElementById("toggleAllTime");
+
+      if (scope === 'latest') {
+        latestBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-white text-[#0F1B2D] shadow-xs";
+        allBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition";
+      } else {
+        allBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-white text-[#0F1B2D] shadow-xs";
+        latestBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition";
+      }
+
+      // Update scope labels under KPI cards
+      const scopeLabel = scope === 'latest' ? 'latest run' : 'all time';
+      document.getElementById("kpiFirmsSub").textContent = scopeLabel;
+      document.getElementById("kpiEmailsSub").textContent = scopeLabel;
+      document.getElementById("kpiWebsitesSub").textContent = scopeLabel;
+
+      refreshData();
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById("toast");
+      const toastMsg = document.getElementById("toastMsg");
+      toastMsg.textContent = msg;
+      toast.classList.remove("translate-y-20", "opacity-0");
+      setTimeout(() => {
+        toast.classList.add("translate-y-20", "opacity-0");
+      }, 3000);
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(`Copied: ${text}`);
+      });
+    }
+
+    function appendActivityLog(msg) {
+      const box = document.getElementById("activityStreamBox");
+      const row = document.createElement("div");
+      row.className = "hover:text-slate-900 transition";
+      row.textContent = msg;
+      box.appendChild(row);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function setKPILoading(loading) {
+      const fCont = document.getElementById("kpiFirmsContainer");
+      const eCont = document.getElementById("kpiEmailsContainer");
+      const wCont = document.getElementById("kpiWebsitesContainer");
+
+      if (loading) {
+        fCont.innerHTML = `<div class="h-7 w-16 bg-[#E6E9EF] rounded-lg animate-pulse"></div>`;
+        eCont.innerHTML = `<div class="h-7 w-24 bg-[#E6E9EF] rounded-lg animate-pulse"></div>`;
+        wCont.innerHTML = `<div class="h-7 w-16 bg-[#E6E9EF] rounded-lg animate-pulse"></div>`;
+      }
+    }
+
+    function updateKPICards(stats) {
+      if (!stats) {
+        document.getElementById("kpiFirmsContainer").innerHTML = `<div id="kpiFirmsVal" class="text-2xl sm:text-3xl font-bold text-[#0F1B2D] tabular-nums">—</div>`;
+        document.getElementById("kpiEmailsContainer").innerHTML = `<span id="kpiEmailsVal" class="text-2xl sm:text-3xl font-bold text-[#0F1B2D] tabular-nums">—</span><span class="text-slate-400 font-bold">·</span><span id="kpiEmailsRate" class="text-base sm:text-lg font-semibold text-slate-700 tabular-nums">—</span>`;
+        document.getElementById("kpiWebsitesContainer").innerHTML = `<div id="kpiWebsitesVal" class="text-2xl sm:text-3xl font-bold text-[#0F1B2D] tabular-nums">—</div>`;
+        return;
+      }
+      document.getElementById("kpiFirmsContainer").innerHTML = `<div id="kpiFirmsVal" class="text-2xl sm:text-3xl font-bold text-[#0F1B2D] tabular-nums">${stats.total_leads || 0}</div>`;
+      document.getElementById("kpiEmailsContainer").innerHTML = `
+        <span id="kpiEmailsVal" class="text-2xl sm:text-3xl font-bold text-[#0F1B2D] tabular-nums">${stats.with_email || 0}</span>
+        <span class="text-slate-400 font-bold">·</span>
+        <span id="kpiEmailsRate" class="text-base sm:text-lg font-semibold text-slate-700 tabular-nums">${stats.email_success_rate || 0}%</span>
+      `;
+      document.getElementById("kpiWebsitesContainer").innerHTML = `<div id="kpiWebsitesVal" class="text-2xl sm:text-3xl font-bold text-[#0F1B2D] tabular-nums">${stats.with_website || 0}</div>`;
+    }
+
+    async function refreshData() {
+      try {
+        // 1. Fetch latest run info for this visitor's session
+        const runRes = await fetch(apiUrl(`/api/runs/latest?session_id=${encodeURIComponent(clientSessionId)}`));
+        if (runRes.ok) {
+          const runData = await runRes.json();
+          latestRun = runData.run;
+          latestRunId = latestRun ? latestRun.id : null;
+        }
+
+        // 2. Query leads for selected scope
+        const queryRun = currentScope === 'latest' ? (latestRunId || 'empty_session') : 'all';
+        const url = apiUrl(`/api/leads?run_id=${encodeURIComponent(queryRun)}&session_id=${encodeURIComponent(clientSessionId)}&limit=500`);
+        const res = await fetch(url);
+        let data = { leads: [], stats: null, all_time_stats: null };
+        if (res.ok) {
+          data = await res.json();
+          allLeads = data.leads || [];
+        }
+
+        // 3. Update Heading, Run Line, and Run Summary Rail
+        if (latestRun) {
+          const runTimeStr = formatTime(latestRun.started_at);
+          document.getElementById("latestRunCount").textContent = latestRun.found_total || 0;
+          document.getElementById("clearLatestMenuText").textContent = `Clear latest run (${latestRun.found_total || 0} firms)`;
+
+          // Scope-dependent Heading & Subline
+          if (currentScope === 'latest') {
+            document.getElementById("headingMarket").textContent = latestRun.market || 'Selected Market';
+            document.getElementById("headingSubline").textContent = `Latest run: ${runTimeStr} · ${latestRun.found_total || 0} found · ${latestRun.new_count || 0} new`;
+          } else {
+            const allCount = data.all_time_stats ? data.all_time_stats.total_leads || 0 : allLeads.length;
+            document.getElementById("headingMarket").textContent = "all markets";
+            document.getElementById("headingSubline").textContent = `All time: ${allCount} total firms in database`;
+          }
+
+          // Show Run Line slim card
+          const runLine = document.getElementById("runLineCard");
+          runLine.classList.remove("hidden");
+          document.getElementById("stage1Counter").textContent = `${latestRun.found_total || 0} / ${latestRun.target_count || 25}`;
+          const s1Pct = Math.min(100, Math.round(((latestRun.found_total || 0) / (latestRun.target_count || 25)) * 100));
+          document.getElementById("stage1Bar").style.width = `${s1Pct}%`;
+
+          document.getElementById("stage2Counter").textContent = `${latestRun.sites_crawled || latestRun.found_total || 0} / ${latestRun.found_total || 0}`;
+          document.getElementById("stage2Bar").style.width = `100%`;
+
+          const durationSec = latestRun.duration_seconds || 0;
+          document.getElementById("pipelineTimer").textContent = formatDuration(durationSec);
+
+          const endPill = document.getElementById("runEndReasonPill");
+          const formattedEnd = formatEndStatePill(latestRun.end_state);
+          endPill.textContent = formattedEnd.label;
+          endPill.className = `px-2.5 py-0.5 rounded-full text-xs font-semibold ${formattedEnd.badgeClass}`;
+
+          // Update Run summary card in Right Rail
+          if (currentScope === 'latest') {
+            updateRunSummaryRail(latestRun);
+          } else {
+            const allCount = data.all_time_stats ? data.all_time_stats.total_leads || 0 : allLeads.length;
+            const allEmail = data.all_time_stats ? data.all_time_stats.with_email || 0 : allLeads.filter(l => Boolean(l.email)).length;
+            updateRunSummaryRail({
+              id: "all_runs",
+              market: "all markets",
+              found_total: allCount,
+              new_count: allCount,
+              emails_found: allEmail,
+              end_state: "stored"
+            });
+          }
+        } else {
+          // No run yet state
+          if (currentScope === 'latest') {
+            const locVal = document.getElementById("locationInput").value.trim();
+            document.getElementById("headingMarket").textContent = locVal || "selected market";
+            document.getElementById("headingSubline").textContent = "No run yet";
+            document.getElementById("runLineCard").classList.add("hidden");
+            updateRunSummaryRail(null);
+          } else {
+            const allCount = data.all_time_stats ? data.all_time_stats.total_leads || 0 : allLeads.length;
+            const allEmail = data.all_time_stats ? data.all_time_stats.with_email || 0 : allLeads.filter(l => Boolean(l.email)).length;
+            document.getElementById("headingMarket").textContent = "all markets";
+            document.getElementById("headingSubline").textContent = `All time: ${allCount} total firms in database`;
+            updateRunSummaryRail({
+              id: "all_runs",
+              market: "all markets",
+              found_total: allCount,
+              new_count: allCount,
+              emails_found: allEmail,
+              end_state: "stored"
+            });
+          }
+          document.getElementById("latestRunCount").textContent = 0;
+          document.getElementById("clearLatestMenuText").textContent = "Clear latest run (0 firms)";
+        }
+
+        // 4. Update KPI cards based on active scope
+        if (currentScope === 'latest' && !latestRun) {
+          updateKPICards(null); // Show dash
+        } else {
+          const activeStats = currentScope === 'latest' ? data.stats : data.all_time_stats;
+          updateKPICards(activeStats);
+        }
+
+        if (data.all_time_stats) {
+          document.getElementById("allTimeTotalCount").textContent = data.all_time_stats.total_leads || 0;
+          document.getElementById("deleteEverythingMenuText").textContent = `Delete everything (${data.all_time_stats.total_leads || 0} firms)`;
+        }
+
+        // 5. Update Export menu items with scope and exact counts
+        const scopeLabel = currentScope === 'latest' ? 'latest run' : 'all time';
+        const firmsCount = allLeads.length;
+        const emailsCount = allLeads.filter(l => Boolean(l.email)).length;
+        let practitionersCount = 0;
+        for (const f of allLeads) {
+          practitionersCount += (f.people || []).length;
+        }
+
+        document.getElementById("exportItemFirms").textContent = `Firms (CSV) · ${firmsCount} · ${scopeLabel}`;
+        document.getElementById("exportItemPractitioners").textContent = `Practitioners (CSV) · ${practitionersCount} · ${scopeLabel}`;
+        document.getElementById("exportItemEmails").textContent = `Emails only (CSV) · ${emailsCount} · ${scopeLabel}`;
+
+        renderDirectoryList();
+      } catch (err) {
+        console.error("Refresh error:", err);
+      }
+    }
+
+    function formatEndStatePill(endState) {
+      if (endState === "target_reached") return { label: "Target reached", badgeClass: "bg-emerald-50 text-emerald-700 border border-emerald-200" };
+      if (endState === "search_exhausted") return { label: "Search exhausted", badgeClass: "bg-amber-50 text-amber-700 border border-amber-200" };
+      if (endState === "stopped") return { label: "Stopped by you", badgeClass: "bg-slate-100 text-slate-700 border border-slate-200" };
+      if (endState === "timed_out") return { label: "Timed out", badgeClass: "bg-rose-50 text-rose-700 border border-rose-200" };
+      if (endState === "error") return { label: "Error", badgeClass: "bg-rose-50 text-rose-700 border border-rose-200" };
+      if (endState === "running") return { label: "Running", badgeClass: "bg-blue-50 text-[#2F6FE4] border border-blue-200 animate-pulse" };
+      return { label: "Completed", badgeClass: "bg-slate-100 text-slate-700 border border-slate-200" };
+    }
+
+    function updateRunSummaryRail(run) {
+      const line1 = document.getElementById("summaryMetaLine1");
+      const line2 = document.getElementById("summaryMetaLine2");
+      if (!run) {
+        line1.textContent = "ID: None · Market: None";
+        line2.textContent = "Found: 0 · New: 0 · Emails: 0 · Idle";
+        return;
+      }
+      const shortId = run.id ? run.id.substring(0, 12) : "None";
+      const mkt = run.market || "Unknown";
+      const found = run.found_total || 0;
+      const newCnt = run.new_count || 0;
+      const em = run.emails_found || 0;
+      const state = run.end_state || "completed";
+
+      line1.textContent = `${shortId} · ${mkt} · ${found} found · ${newCnt} new`;
+      line2.textContent = `${em} emails · ${state}`;
+    }
+
+    async function handleStartSearch(e) {
+      e.preventDefault();
+      const location = document.getElementById("locationInput").value.trim();
+      const query = "Law firms";
+      const maxResults = parseInt(document.getElementById("maxResultsInput").value, 10);
+
+      updateHeadingMarket(location);
+      document.getElementById("headingSubline").textContent = "Running search...";
+
+      isSearchRunning = true;
+      currentlyEnrichingId = null;
+      targetCount = maxResults;
+      runStartTime = Date.now();
+
+      // Show Run Line slim card
+      const runLine = document.getElementById("runLineCard");
+      runLine.classList.remove("hidden");
+      document.getElementById("stage1Counter").textContent = `0 / ${maxResults}`;
+      document.getElementById("stage1Bar").style.width = "0%";
+      document.getElementById("stage2Counter").textContent = `0 / 0`;
+      document.getElementById("stage2Bar").style.width = "0%";
+
+      const endPill = document.getElementById("runEndReasonPill");
+      endPill.textContent = "Running";
+      endPill.className = "px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-[#2F6FE4] border border-blue-200 animate-pulse";
+
+      if (runTimerInterval) clearInterval(runTimerInterval);
+      runTimerInterval = setInterval(() => {
+        if (!isSearchRunning) return;
+        const elapsedSec = Math.floor((Date.now() - runStartTime) / 1000);
+        const timerEl = document.getElementById("pipelineTimer");
+        if (timerEl) timerEl.textContent = formatDuration(elapsedSec);
+      }, 1000);
+
+      // Buttons state
+      document.getElementById("startBtn").disabled = true;
+      const stopBtn = document.getElementById("stopBtn");
+      stopBtn.disabled = false;
+      stopBtn.className = "px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-xs transition cursor-pointer";
+
+      // Running pill in header
+      const liveInd = document.getElementById("liveRunIndicator");
+      liveInd.classList.remove("hidden");
+      liveInd.classList.add("flex");
+
+      // Expand live stream while run is active
+      if (isStreamCollapsed) {
+        toggleLiveStreamCollapse();
+      }
+
+      setKPILoading(true);
+      document.getElementById("activityStreamBox").innerHTML = "";
+      appendActivityLog(`[${formatDuration(0)}] Search started in ${location} (Target: ${maxResults})`);
+
+      try {
+        const resp = await fetch(apiUrl("/api/search"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ location, query, max_results: maxResults, session_id: clientSessionId })
+        });
+
+        if (!resp.ok) throw new Error("Could not initialize search session.");
+        const data = await resp.json();
+        activeRunId = data.run_id || data.job_id;
+        latestRunId = activeRunId;
+
+        // Force scope to latest run
+        currentScope = 'latest';
+        document.getElementById("toggleLatestRun").className = "px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-white text-[#0F1B2D] shadow-xs";
+        document.getElementById("toggleAllTime").className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition";
+
+        connectSSE(activeRunId);
+      } catch (err) {
+        showToast(err.message);
+        stopRunUI("error", err.message);
+      }
+    }
+
+    function connectSSE(runId) {
+      if (eventSource) eventSource.close();
+      eventSource = new EventSource(apiUrl(`/api/stream/${runId}`));
+
+      eventSource.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          handleSSEEvent(payload);
+        } catch (e) {}
+      };
+
+      eventSource.onerror = () => {
+        if (eventSource && eventSource.readyState === EventSource.CLOSED) {
+          if (isSearchRunning) {
+            stopRunUI("completed", "Search stream closed.");
+            refreshData();
+          }
+        }
+      };
+    }
+
+    function handleSSEEvent(payload) {
+      const { event, data, discovered, new_count, enriched, emails_found, max_results, status, end_reason } = payload;
+
+      const disc = discovered || allLeads.length;
+      const em = emails_found || 0;
+      const web = allLeads.filter(l => Boolean(l.website)).length;
+      updateKPICards({
+        total_leads: disc,
+        with_email: em,
+        with_website: web,
+        email_success_rate: disc > 0 ? Math.round((em / disc) * 1000) / 10 : 0
+      });
+
+      if (event === "sync") {
+        if (data && data.logs && Array.isArray(data.logs)) {
+          const box = document.getElementById("activityStreamBox");
+          box.innerHTML = "";
+          data.logs.forEach(msg => appendActivityLog(msg));
+        }
+        if (data && data.stats) updateKPICards(data.stats);
+        if (status === "completed" || status === "stopped" || status === "error") {
+          stopRunUI(end_reason || status, data ? data.end_reason || status : status);
+        }
+        return;
+      } else if (event === "log") {
+        const timeElapsed = runStartTime ? formatDuration(Math.floor((Date.now() - runStartTime) / 1000)) : "00:00";
+        appendActivityLog(`[${timeElapsed}] ${data.message}`);
+      } else if (event === "firm_discovered") {
+        appendFirmLocally(data);
+        renderDirectoryList();
+        const cnt = discovered || allLeads.length;
+        document.getElementById("stage1Counter").textContent = `${cnt} / ${targetCount}`;
+        const pct = Math.min(100, Math.round((cnt / targetCount) * 100));
+        document.getElementById("stage1Bar").style.width = `${pct}%`;
+      } else if (event === "firm_enriching") {
+        currentlyEnrichingId = data.id;
+        document.getElementById("stage2Counter").textContent = `${data.current} / ${data.total}`;
+        const pct2 = Math.min(100, Math.round((data.current / data.total) * 100));
+        document.getElementById("stage2Bar").style.width = `${pct2}%`;
+        renderDirectoryList();
+      } else if (event === "firm_enriched") {
+        const idx = allLeads.findIndex(l => l.id === data.id);
+        if (idx >= 0) {
+          allLeads[idx] = {
+            ...allLeads[idx],
+            ...data,
+            enrichment_status: data.status || allLeads[idx].enrichment_status
+          };
+        }
+        if (currentlyEnrichingId === data.id) {
+          currentlyEnrichingId = null;
+        }
+        const tot = max_results || targetCount || allLeads.length;
+        const enr = enriched || 0;
+        document.getElementById("stage2Counter").textContent = `${enr} / ${tot}`;
+        const pct2 = Math.min(100, Math.round((enr / tot) * 100));
+        document.getElementById("stage2Bar").style.width = `${pct2}%`;
+        renderDirectoryList();
+      } else if (event === "firm_people_updated") {
+        const item = allLeads.find(l => l.id === data.firm_id);
+        if (item) {
+          item.people = data.people || [];
+          renderDirectoryList();
+        }
+      } else if (event === "completed" || event === "stopped" || event === "error") {
+        stopRunUI(end_reason || event, data ? data.message : "Run finished");
+        refreshData();
+      }
+    }
+
+    function appendFirmLocally(item) {
+      const idx = allLeads.findIndex(l => l.id === item.id);
+      if (idx >= 0) {
+        allLeads[idx] = { ...allLeads[idx], ...item };
+      } else {
+        allLeads.unshift(item);
+      }
+    }
+
+    async function handleStopSearch() {
+      if (activeRunId) {
+        appendActivityLog("[User] Stop signal sent.");
+        await fetch(apiUrl(`/api/stop/${activeRunId}`), { method: "POST" });
+      }
+    }
+
+    function stopRunUI(endReason, reasonMessage) {
+      isSearchRunning = false;
+      currentlyEnrichingId = null;
+      if (runTimerInterval) {
+        clearInterval(runTimerInterval);
+        runTimerInterval = null;
+      }
+
+      document.getElementById("startBtn").disabled = false;
+      const stopBtn = document.getElementById("stopBtn");
+      stopBtn.disabled = true;
+      stopBtn.className = "px-4 py-2 rounded-xl bg-white text-slate-400 border border-slate-200 font-semibold text-xs transition disabled:opacity-40 disabled:pointer-events-none";
+
+      const liveInd = document.getElementById("liveRunIndicator");
+      liveInd.classList.add("hidden");
+      liveInd.classList.remove("flex");
+
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+
+      const endPill = document.getElementById("runEndReasonPill");
+      const formatted = formatEndStatePill(endReason);
+      endPill.textContent = formatted.label;
+      endPill.className = `px-2.5 py-0.5 rounded-full text-xs font-semibold ${formatted.badgeClass}`;
+
+      renderDirectoryList();
+      lucide.createIcons();
+    }
+
+    function renderDirectoryList() {
+      const container = document.getElementById("directoryListContainer");
+      const filterText = document.getElementById("filterInput").value.toLowerCase().trim();
+      const hideLowRel = document.getElementById("hideLowRelevanceCheckbox").checked;
+      const onlyEmail = document.getElementById("onlyWithEmailCheckbox").checked;
+
+      let filtered = allLeads.filter(l => {
+        if (hideLowRel && l.relevance === 'low') return false;
+        if (onlyEmail && (!l.email || l.email === "")) return false;
+        if (filterText) {
+          const hay = `${l.name} ${l.phone} ${l.email} ${l.address} ${l.city} ${l.category} ${l.website}`.toLowerCase();
+          if (!hay.includes(filterText)) return false;
+        }
+        return true;
+      });
+
+      // Empty State: "No run yet. Choose a market and press Find firms."
+      if (filtered.length === 0) {
+        if (currentScope === 'latest' && (!latestRun || allLeads.length === 0)) {
+          container.innerHTML = `
+            <div class="bg-white border border-slate-200/80 rounded-2xl p-12 text-center text-slate-500 card-shadow space-y-2">
+              <i data-lucide="compass" class="w-8 h-8 mx-auto text-[#2F6FE4]"></i>
+              <div class="text-sm font-semibold text-slate-800">No run yet</div>
+              <div class="text-xs text-slate-500">Choose a market and press Find firms.</div>
+            </div>
+          `;
+        } else {
+          container.innerHTML = `
+            <div class="bg-white border border-slate-200/80 rounded-2xl p-10 text-center text-slate-400 card-shadow space-y-1">
+              <i data-lucide="search-x" class="w-8 h-8 mx-auto text-slate-300"></i>
+              <div class="text-sm font-medium text-slate-600">No matching directory records found</div>
+              <div class="text-xs text-slate-400">Adjust search parameters or disable filters.</div>
+            </div>
+          `;
+        }
+        lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = filtered.map((item, index) => {
+        const isSelected = selectedRowId === item.id;
+        const isExpanded = expandedFirms.has(item.id);
+        const peopleList = item.people || [];
+        const peopleCount = peopleList.length;
+        const rowBg = isSelected ? "bg-[#F1F4F9] border-[#2F6FE4]/40" : "bg-white hover:bg-[#F8FAFC] border-slate-200/80";
+
+        // Status pills: Email found, Generic, MX: Yes, Contact form only
+        let statusPillsHtml = '';
+        if (item.email) {
+          statusPillsHtml += `
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+              Email found
+            </span>
+          `;
+          if (item.email_type) {
+            statusPillsHtml += `
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                ${escapeHtml(item.email_type)}
+              </span>
+            `;
+          }
+          if (item.mx_valid === true) {
+            statusPillsHtml += `
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200" title="DNS MX confirmed">
+                MX: Yes
+              </span>
+            `;
+          } else if (item.mx_valid === false) {
+            statusPillsHtml += `
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200" title="No MX record detected">
+                MX: No
+              </span>
+            `;
+          }
+        } else if (item.enrichment_status === 'contact_form_only') {
+          statusPillsHtml += `
+            <a href="${item.contact_form_url || item.website || '#'}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition">
+              Contact form only
+            </a>
+          `;
+        }
+
+        // New or Already in database pill
+        let dedupPill = '';
+        if (item.was_new === true) {
+          dedupPill = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">New</span>`;
+        } else if (item.was_new === false || item.already_in_db) {
+          dedupPill = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200" title="Matched existing place_id in database">Already in database</span>`;
+        }
+
+        const locText = [item.address, item.city, item.state].filter(Boolean).join(', ');
+
+        return `
+          <div
+            onclick="selectRow(${item.id})"
+            class="${rowBg} border rounded-2xl p-4 transition-all duration-150 card-shadow cursor-pointer select-none w-full min-w-0"
+          >
+            <!-- Top line: Index · Firm name, New pill, Status pills -->
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex flex-wrap items-center gap-2 min-w-0">
+                <span class="font-bold text-sm text-[#0F1B2D]">
+                  ${index + 1} · ${escapeHtml(item.name)}
+                </span>
+                ${item.rating ? `
+                  <span class="inline-flex items-center space-x-0.5 text-xs text-amber-600 font-semibold">
+                    <i data-lucide="star" class="w-3.5 h-3.5 fill-amber-400 text-amber-400"></i>
+                    <span>${item.rating}</span>
+                  </span>
+                ` : ''}
+                ${dedupPill}
+                ${statusPillsHtml}
+              </div>
+
+              <!-- Right: Site, Maps, delete icon -->
+              <div class="flex items-center space-x-2 text-xs flex-shrink-0">
+                ${item.website ? `
+                  <a href="${item.website}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="text-slate-600 hover:text-[#2F6FE4] transition px-2 py-0.5 bg-slate-100 hover:bg-blue-50 rounded-lg flex items-center space-x-1" title="Visit website: ${item.website}">
+                    <i data-lucide="globe" class="w-3 h-3"></i>
+                    <span class="text-[11px]">Site</span>
+                  </a>
+                ` : ''}
+                ${item.google_maps_url ? `
+                  <a href="${item.google_maps_url}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="text-slate-600 hover:text-[#2F6FE4] transition px-2 py-0.5 bg-slate-100 hover:bg-blue-50 rounded-lg flex items-center space-x-1" title="View place on Google Maps">
+                    <i data-lucide="map" class="w-3 h-3"></i>
+                    <span class="text-[11px]">Maps</span>
+                  </a>
+                ` : ''}
+                <button
+                  type="button"
+                  onclick="deleteFirm(event, ${item.id})"
+                  class="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition hover:bg-rose-50"
+                  title="Remove firm from database"
+                >
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Meta line: address and phone, Site and Maps links, N practitioners toggle -->
+            <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 pt-1.5">
+              <div class="flex flex-wrap items-center gap-2 min-w-0">
+                ${locText ? `<span class="truncate max-w-[340px]" title="${escapeHtml(locText)}">${escapeHtml(locText)}</span>` : ''}
+                ${locText && item.phone ? `<span class="text-slate-300">·</span>` : ''}
+                ${item.phone ? `<span class="font-mono tabular-nums text-slate-700">${escapeHtml(item.phone)}</span>` : ''}
+                ${item.email ? `
+                  <span class="text-slate-300">·</span>
+                  <a href="mailto:${item.email}" onclick="event.stopPropagation()" class="text-[#2F6FE4] hover:underline">${escapeHtml(item.email)}</a>
+                ` : ''}
+              </div>
+
+              <!-- N practitioners toggle -->
+              <button
+                type="button"
+                onclick="event.stopPropagation(); togglePeopleDrawer(${item.id})"
+                class="inline-flex items-center space-x-1 text-xs font-semibold text-slate-700 hover:text-[#2F6FE4] transition"
+              >
+                <span>${peopleCount} practitioners</span>
+                <i data-lucide="${isExpanded ? 'chevron-down' : 'chevron-right'}" class="w-3 h-3"></i>
+              </button>
+            </div>
+
+            <!-- Expanded Firm: Practitioner cards in a normal-flow responsive grid (auto-fill, min 240px) -->
+            ${isExpanded ? `
+              <div class="mt-3 pt-3 border-t border-slate-100 w-full min-w-0">
+                ${peopleCount === 0 ? `
+                  <div class="text-xs text-slate-400 italic py-2">No individual practitioners cataloged for this firm.</div>
+                ` : renderPractitionersGrid(item)}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    function renderPractitionersGrid(firm) {
+      const people = firm.people || [];
+      const showLow = showLowConfidenceFirms.has(firm.id);
+
+      const highMedPeople = people.filter(p => p.confidence === 'high' || p.confidence === 'medium');
+      const lowPeople = people.filter(p => p.confidence === 'low');
+      const displayedPeople = showLow ? people : highMedPeople;
+
+      let cardsHtml = displayedPeople.map(p => {
+        // Confidence labels: HIGH = dark filled pill, MED = outlined pill, LOW = dashed pill
+        let confPill = '';
+        if (p.confidence === 'high') {
+          confPill = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-900 text-white tracking-wide">HIGH</span>`;
+        } else if (p.confidence === 'medium') {
+          confPill = `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white border border-slate-400 text-slate-800 tracking-wide">MED</span>`;
+        } else {
+          confPill = `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-50 border border-dashed border-slate-400 text-slate-600 tracking-wide">LOW</span>`;
+        }
+
+        let evDetails = `Score: ${p.score || 0} (Layer: ${p.source_layer || 'L1'})`;
+        try {
+          const evList = typeof p.evidence === 'string' ? JSON.parse(p.evidence) : p.evidence;
+          if (Array.isArray(evList)) {
+            evDetails += '\\n' + evList.map(e => `• ${e.signal}: ${e.weight > 0 ? '+' : ''}${e.weight}`).join('\\n');
+          }
+        } catch(e) {}
+
+        return `
+          <div class="bg-white border border-slate-200/90 rounded-xl p-3 card-shadow space-y-2 flex flex-col justify-between min-w-0">
+            <div class="space-y-1">
+              <div class="flex items-start justify-between gap-1">
+                <div class="font-bold text-xs text-[#0F1B2D] truncate" title="${escapeHtml(p.name)}">
+                  ${escapeHtml(p.name)}
+                </div>
+                <button
+                  type="button"
+                  onclick="deletePerson(event, ${p.id})"
+                  class="text-slate-300 hover:text-rose-600 transition p-0.5 rounded"
+                  title="Remove person"
+                >
+                  <i data-lucide="trash-2" class="w-3 h-3"></i>
+                </button>
+              </div>
+              <div class="text-[11px] text-slate-500 truncate" title="${escapeHtml(p.title || '')}">
+                ${escapeHtml(p.title || 'Attorney')}
+              </div>
+            </div>
+
+            <!-- Confidence badge + Evidence popover button -->
+            <div class="flex items-center space-x-1.5 pt-0.5">
+              ${confPill}
+              <button
+                type="button"
+                onclick="event.stopPropagation(); alert('${escapeHtml(evDetails)}')"
+                class="w-4 h-4 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[10px] flex items-center justify-center transition"
+                title="Evidence details: ${escapeHtml(evDetails)}"
+              >
+                i
+              </button>
+            </div>
+
+            <!-- Email (only if published) -->
+            ${p.email ? `
+              <div class="text-[11px] text-[#2F6FE4] hover:underline truncate">
+                <a href="mailto:${p.email}" onclick="event.stopPropagation()">${escapeHtml(p.email)}</a>
+              </div>
+            ` : ''}
+
+            <!-- Search LinkedIn Button -->
+            <div class="pt-1">
+              <a
+                href="${p.linkedin_url || `https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(p.name + ' ' + firm.name)}`}"
+                target="_blank"
+                rel="noopener noreferrer"
+                onclick="event.stopPropagation()"
+                class="w-full inline-flex items-center justify-center space-x-1.5 py-1 px-2.5 rounded-lg border border-slate-200 hover:border-slate-300 text-slate-700 bg-white hover:bg-slate-50 text-[11px] font-medium transition shadow-2xs"
+                title="Opens a manual search; not a verified profile"
+              >
+                <span>Search LinkedIn</span>
+              </a>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // If low-confidence names exist and are hidden, append card: "N low-confidence names hidden" with "Show" button
+      if (lowPeople.length > 0 && !showLow) {
+        cardsHtml += `
+          <div class="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-3 flex flex-col items-center justify-center text-center space-y-1.5 min-w-0">
+            <div class="text-xs text-slate-600 font-medium">
+              ${lowPeople.length} low-confidence name${lowPeople.length > 1 ? 's' : ''} hidden
+            </div>
+            <button
+              type="button"
+              onclick="event.stopPropagation(); toggleLowConfidence(${firm.id})"
+              class="px-3 py-1 rounded-full border border-dashed border-slate-400 hover:border-slate-600 bg-white text-slate-700 text-xs font-semibold transition"
+            >
+              Show
+            </button>
+          </div>
+        `;
+      } else if (lowPeople.length > 0 && showLow) {
+        cardsHtml += `
+          <div class="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-3 flex flex-col items-center justify-center text-center space-y-1.5 min-w-0">
+            <div class="text-xs text-slate-600 font-medium">
+              Showing ${lowPeople.length} low-confidence names
+            </div>
+            <button
+              type="button"
+              onclick="event.stopPropagation(); toggleLowConfidence(${firm.id})"
+              class="px-3 py-1 rounded-full border border-slate-300 hover:border-slate-400 bg-white text-slate-700 text-xs font-semibold transition"
+            >
+              Hide low
+            </button>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="grid gap-3 pt-1 w-full min-w-0" style="grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));">
+          ${cardsHtml}
+        </div>
+      `;
+    }
+
+    function selectRow(id) {
+      selectedRowId = id;
+      renderDirectoryList();
+    }
+
+    // Export Dropdown Handlers
+    function toggleExportMenu(e) {
+      e.stopPropagation();
+      const menu = document.getElementById("exportDropdownMenu");
+      menu.classList.toggle("hidden");
+    }
+
+    function closeExportMenu() {
+      const menu = document.getElementById("exportDropdownMenu");
+      if (menu) menu.classList.add("hidden");
+    }
+
+    function downloadCSV(emailsOnly) {
+      const scopeRunId = currentScope === 'latest' ? (latestRunId || '') : '';
+      let url = apiUrl(`/api/export/csv?run_id=${encodeURIComponent(scopeRunId)}`);
+      if (emailsOnly) url += '&only_with_email=true';
+      window.location.href = url;
+    }
+
+    function downloadContactsCSV() {
+      const scopeRunId = currentScope === 'latest' ? (latestRunId || '') : '';
+      const url = apiUrl(`/api/export/contacts/csv?run_id=${encodeURIComponent(scopeRunId)}`);
+      window.location.href = url;
+    }
+
+    // Refresh Header Button: Deletes all results from all time & resets UI
+    async function handleRefreshClick() {
+      try {
+        const res = await fetch(apiUrl('/api/leads/clear-all'), { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          latestRun = null;
+          latestRunId = null;
+          allLeads = [];
+          const locInput = document.getElementById("locationInput");
+          if (locInput) locInput.value = "";
+          updateHeadingMarket("");
+          startUndoToast(data.token, `Deleted all ${data.affected} results from all time.`);
+          await refreshData();
+        } else {
+          showToast("Could not clear results.");
+        }
+      } catch (err) {
+        console.error("Refresh clear error:", err);
+        showToast("Failed to clear results.");
+      }
+    }
+
+    // Clear & Undo Handlers
+    function toggleClearMenu(e) {
+      e.stopPropagation();
+      const menu = document.getElementById("clearDropdownMenu");
+      menu.classList.toggle("hidden");
+    }
+
+    function promptClearLatestRun() {
+      document.getElementById("clearDropdownMenu").classList.add("hidden");
+      const count = latestRun ? latestRun.found_total || 0 : 0;
+      openConfirmModal({
+        title: `Clear Latest Run (${count} firms)`,
+        description: count > 0
+          ? `This removes the ${count} firms returned by this run. Any firms also returned by other searches will be preserved in the database.`
+          : `No firms in latest run to clear.`,
+        exportUrl: latestRunId ? apiUrl(`/api/export/csv?run_id=${encodeURIComponent(latestRunId)}`) : apiUrl('/api/export/csv'),
+        onConfirm: async () => {
+          if (!latestRunId) return;
+          const res = await fetch(apiUrl('/api/runs/clear-latest'), { method: 'POST' });
+          if (res.ok) {
+            const data = await res.json();
+            startUndoToast(data.token, `Cleared ${data.affected} firms from latest run.`);
+            refreshData();
+          }
+        }
+      });
+    }
+
+    function promptDeleteEverything() {
+      document.getElementById("clearDropdownMenu").classList.add("hidden");
+      const count = document.getElementById("allTimeTotalCount").textContent || 'all';
+      openConfirmModal({
+        title: `Delete Everything (${count} firms)`,
+        description: `This will permanently delete all ${count} firms, practitioner profiles, and run records from the database.`,
+        exportUrl: apiUrl(`/api/export/csv?run_id=all`),
+        onConfirm: async () => {
+          const res = await fetch(apiUrl('/api/leads/clear-all'), { method: 'POST' });
+          if (res.ok) {
+            const data = await res.json();
+            startUndoToast(data.token, `Deleted all ${data.affected} firms and runs.`);
+            refreshData();
+          }
+        }
+      });
+    }
+
+    async function handleNewSession() {
+      document.getElementById("clearDropdownMenu").classList.add("hidden");
+      await fetch(apiUrl(`/api/session/new?session_id=${encodeURIComponent(clientSessionId)}`), { method: 'POST' });
+      clientSessionId = 'sess_' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('firm_finder_session_id', clientSessionId);
+      currentScope = 'latest';
+      latestRun = null;
+      latestRunId = null;
+      allLeads = [];
+      refreshData();
+      showToast("Started a new session.");
+    }
+
+    let activeModalCallback = null;
+    function openConfirmModal({ title, description, exportUrl, onConfirm }) {
+      document.getElementById("modalTitle").textContent = title;
+      document.getElementById("modalDescription").textContent = description;
+      document.getElementById("modalExportLink").href = exportUrl;
+      activeModalCallback = onConfirm;
+
+      const confirmBtn = document.getElementById("modalConfirmBtn");
+      confirmBtn.onclick = async () => {
+        const cb = activeModalCallback;
+        closeConfirmModal();
+        if (cb) await cb();
+      };
+      document.getElementById("clearConfirmModal").classList.remove("hidden");
+    }
+
+    function closeConfirmModal() {
+      document.getElementById("clearConfirmModal").classList.add("hidden");
+      activeModalCallback = null;
+    }
+
+    function startUndoToast(token, message) {
+      if (undoCountdownTimer) clearInterval(undoCountdownTimer);
+      currentUndoToken = token;
+      undoSecondsRemaining = 10;
+
+      const toast = document.getElementById("undoToastContainer");
+      document.getElementById("undoToastMessage").textContent = message;
+      document.getElementById("undoBtnText").textContent = `Undo (10s)`;
+      toast.classList.remove("hidden");
+      lucide.createIcons();
+
+      undoCountdownTimer = setInterval(() => {
+        undoSecondsRemaining -= 1;
+        if (undoSecondsRemaining <= 0) {
+          clearInterval(undoCountdownTimer);
+          toast.classList.add("hidden");
+          if (currentUndoToken) {
+            fetch(apiUrl(`/api/undo/purge?token=${encodeURIComponent(currentUndoToken)}`), { method: 'POST' });
+            currentUndoToken = null;
+          }
+        } else {
+          document.getElementById("undoBtnText").textContent = `Undo (${undoSecondsRemaining}s)`;
+        }
+      }, 1000);
+    }
+
+    async function executeUndoClick() {
+      if (undoCountdownTimer) clearInterval(undoCountdownTimer);
+      document.getElementById("undoToastContainer").classList.add("hidden");
+      if (currentUndoToken) {
+        const token = currentUndoToken;
+        currentUndoToken = null;
+        try {
+          const res = await fetch(apiUrl(`/api/undo?token=${encodeURIComponent(token)}`), { method: 'POST' });
+          if (res.ok) {
+            showToast("Deletion undone! Data restored.");
+            await refreshData();
+          } else {
+            showToast("Could not restore data.");
+          }
+        } catch (e) {
+          showToast("Undo request failed.");
+        }
+      }
+    }
+
+    async function deleteFirm(event, firmId) {
+      event.stopPropagation();
+      if (!confirm("Are you sure you want to remove this firm?")) return;
+      try {
+        const res = await fetch(apiUrl(`/api/firms/${firmId}`), { method: 'DELETE' });
+        if (res.ok) {
+          allLeads = allLeads.filter(l => l.id !== firmId);
+          renderDirectoryList();
+          showToast("Firm removed.");
+        }
+      } catch (e) {
+        console.error("Delete firm failed:", e);
+      }
+    }
+
+    async function deletePerson(event, personId) {
+      event.stopPropagation();
+      if (!confirm("Are you sure you want to remove this practitioner?")) return;
+      try {
+        const res = await fetch(apiUrl(`/api/people/${personId}`), { method: 'DELETE' });
+        if (res.ok) {
+          for (const firm of allLeads) {
+            if (firm.people) {
+              firm.people = firm.people.filter(p => p.id !== personId);
+            }
+          }
+          renderDirectoryList();
+          showToast("Practitioner removed.");
+        }
+      } catch (e) {
+        console.error("Delete practitioner failed:", e);
+      }
+    }
+  </script>
+</body>
+</html>

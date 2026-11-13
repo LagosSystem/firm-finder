@@ -1,0 +1,59 @@
+# Python virtual environment & caches
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Local databases, runtime state, and collected data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+leads.db
+demo_leads.db
+
+# Secrets & environment configurations
+.env
+.env.*
+*.pem
+*.key
+*.token
+
+# Scraped results, test callsets, and evaluations
+tests/
+*.csv
+*.tsv
+
+# Internal documentation, reports, and working notes
+docs/
+storyboard.md
+script.txt
+product_film_v2.html
+
+# Generated media, screenshots, and video projects
+out/
+video/
+scripts/
+*.png
+*.jpg
+*.jpeg
+*.mp4
+!demo/Firm_Finder_product_film.mp4
+
+# Playwright cache & logs
+.local-browsers/
+*.log
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+test_reproduce_layout.py
+verify_engine.py
+
